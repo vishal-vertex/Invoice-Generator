@@ -555,13 +555,41 @@ button, input, select, textarea {
   padding: 10px 16px;
   border-radius: var(--radius-md);
   border: 1px solid var(--slate-200);
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.preview-mode-switch {
+  display: flex;
+  gap: 4px;
+  background: var(--slate-100);
+  padding: 3px;
+  border-radius: var(--radius-sm);
+}
+
+.preview-mode-btn {
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  color: var(--slate-600);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.preview-mode-btn.active {
+  background: white;
+  color: var(--primary);
+  box-shadow: var(--shadow-sm);
 }
 
 .toggle-label {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   font-weight: 600;
   color: var(--slate-700);
   cursor: pointer;
@@ -591,12 +619,14 @@ button, input, select, textarea {
 .paper-sheet {
   position: relative;
   width: 100%;
-  aspect-ratio: 1 / 1.414; /* A4 aspect ratio */
+  aspect-ratio: 210 / 297; /* A4 aspect ratio (210mm x 297mm) */
   background: white;
-  border-radius: 8px;
+  border-radius: 6px;
   box-shadow: var(--shadow-paper);
   border: 1px solid var(--slate-300);
   overflow: hidden;
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  color: #1e293b;
 }
 
 .letterhead-bg-layer {
@@ -610,7 +640,7 @@ button, input, select, textarea {
   z-index: 1;
 }
 
-/* 20% / 65% / 15% Visual Guidelines Overlay */
+/* 20% Top / 15% Bottom Protected Zone Guidelines */
 .guideline-header-zone {
   position: absolute;
   top: 0;
@@ -657,85 +687,247 @@ button, input, select, textarea {
   background: var(--rose);
 }
 
-/* Paper Content Layer (Middle 65% + safety margin) */
+/* Paper Content Layer: Matches jsPDF boundaries
+   Top: 20% + 5mm safety gap = 21.68%
+   Bottom: 15% + 5mm safety gap = 16.68%
+   Left & Right margins: 12mm / 210mm = 5.714% */
 .paper-content-layer {
   position: absolute;
-  top: 20%;
-  bottom: 15%;
-  left: 5%;
-  right: 5%;
-  padding: 1.5% 2%;
+  top: 21.68%;
+  bottom: 16.68%;
+  left: 5.714%;
+  right: 5.714%;
   z-index: 5;
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
 }
 
 .preview-doc-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .preview-doc-title {
-  font-size: 1.1rem;
+  font-size: 1.25rem;
   font-weight: 800;
-  color: var(--dark-navy);
+  color: #0f172a;
+  letter-spacing: -0.01em;
 }
 
 .preview-doc-meta {
-  font-size: 0.75rem;
+  font-size: 0.65rem;
   text-align: right;
-  color: var(--slate-700);
+  color: #0f172a;
+  line-height: 1.45;
 }
 
+.preview-doc-meta div {
+  margin-bottom: 1px;
+}
+
+.preview-doc-meta strong {
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.preview-doc-meta span {
+  color: #334155;
+  margin-left: 4px;
+}
+
+/* Two-column info cards for Customer & Supplier */
 .preview-boxes-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-bottom: 8px;
-  font-size: 0.7rem;
+  gap: 6px;
+  margin-bottom: 6px;
 }
 
 .preview-box {
-  background: var(--slate-50);
-  border: 1px solid var(--slate-200);
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
   border-radius: 4px;
-  padding: 6px;
+  padding: 5px 8px;
+  font-size: 0.65rem;
+  min-height: 52px;
 }
 
 .preview-box h5 {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 2px;
+  text-transform: uppercase;
+}
+
+.preview-box-name {
   font-size: 0.7rem;
-  color: var(--slate-800);
+  font-weight: 700;
+  color: #0f172a;
   margin-bottom: 2px;
 }
 
+.preview-box-details {
+  color: #475569;
+  line-height: 1.35;
+  font-size: 0.62rem;
+}
+
+/* 7-Column Items Table: 100% matched to jsPDF */
 .preview-table-view {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.68rem;
+  font-size: 0.62rem;
   margin-top: 4px;
 }
 
+.preview-table-view thead tr {
+  background: #0f172a;
+  color: #ffffff;
+}
+
 .preview-table-view th {
-  background: var(--dark-navy);
-  color: white;
-  padding: 4px 6px;
-  text-align: left;
+  padding: 4px 5px;
+  font-weight: 700;
+  font-size: 0.58rem;
+  color: #ffffff;
+  border: none;
+}
+
+.preview-table-view th:first-child {
+  border-top-left-radius: 3px;
+  border-bottom-left-radius: 3px;
+}
+
+.preview-table-view th:last-child {
+  border-top-right-radius: 3px;
+  border-bottom-right-radius: 3px;
+}
+
+/* Column proportional widths matching jsPDF (8, auto, 16, 24, 18, 18, 26 out of 186mm) */
+.col-idx { width: 4.3%; text-align: left; }
+.col-desc { width: 40.8%; text-align: left; }
+.col-qty { width: 8.6%; text-align: right; }
+.col-price { width: 12.9%; text-align: right; }
+.col-tax { width: 9.7%; text-align: right; }
+.col-disc { width: 9.7%; text-align: right; }
+.col-total { width: 14.0%; text-align: right; }
+
+.preview-table-view tbody tr {
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.preview-table-view tbody tr.even-row {
+  background: #f8fafc;
 }
 
 .preview-table-view td {
-  padding: 4px 6px;
-  border-bottom: 1px solid var(--slate-200);
+  padding: 4px 5px;
+  color: #1e293b;
+  vertical-align: top;
 }
 
+.preview-item-name {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.preview-item-desc {
+  font-size: 0.55rem;
+  color: #64748b;
+  line-height: 1.25;
+}
+
+/* Summary View - naturally flows below the table matching jsPDF */
 .preview-summary-view {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 0.65rem;
+}
+
+.preview-summary-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.preview-summary-section-title {
+  font-weight: 700;
+  font-size: 0.62rem;
+  color: #0f172a;
+  text-transform: uppercase;
+}
+
+.preview-summary-text {
+  color: #475569;
+  font-size: 0.6rem;
+  line-height: 1.35;
+}
+
+.preview-summary-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.preview-sum-row {
   display: flex;
   justify-content: space-between;
-  margin-top: auto;
-  padding-top: 6px;
-  font-size: 0.7rem;
+  color: #475569;
+  font-size: 0.64rem;
+}
+
+.preview-sum-divider {
+  height: 1px;
+  background: #cbd5e1;
+  margin: 3px 0;
+}
+
+.preview-sum-grand {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 700;
+  font-size: 0.72rem;
+  color: #0f172a;
+}
+
+/* Authorized Signature block matching jsPDF */
+.preview-sig-block {
+  margin-top: 14px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.preview-sig-container {
+  width: 130px;
+  text-align: center;
+}
+
+.preview-sig-line {
+  border-top: 1px solid #94a3b8;
+  margin-bottom: 2px;
+}
+
+.preview-sig-label {
+  font-size: 0.58rem;
+  color: #64748b;
+}
+
+/* Real-Time Live PDF Iframe Preview */
+.preview-pdf-frame {
+  width: 100%;
+  aspect-ratio: 210 / 297;
+  border: 1px solid var(--slate-300);
+  border-radius: 6px;
+  box-shadow: var(--shadow-paper);
+  background: white;
 }
 
 .error-banner {

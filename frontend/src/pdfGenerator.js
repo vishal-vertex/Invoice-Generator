@@ -34,14 +34,13 @@ export function normalizeImageDataUrl(dataUrl) {
 }
 
 /**
- * Generates and downloads a client-side PDF document.
- * Matches backend layout pixel-for-pixel:
+ * Builds the jsPDF document instance with strict layout and styling:
  * - Top 20% header protection
  * - Bottom 15% footer protection
  * - Middle 65% content area (+ 5mm safety gap inside)
  * - Multi-page pagination with repeated letterhead background and table headers
  */
-export async function generateClientPdf(payload) {
+export async function buildPdfDocument(payload) {
   const {
     documentType = 'invoice',
     pageSize = 'a4',
@@ -442,9 +441,26 @@ export async function generateClientPdf(payload) {
     doc.text('Authorized Signature', sigX + 22.5, currentY + 11.5, { align: 'center' });
   }
 
-  // Trigger browser download
   const sanitizedDocNo = (documentNo || 'document').replace(/[^a-zA-Z0-9_-]/g, '_');
   const fileName = `${documentType}_${sanitizedDocNo}.pdf`;
+
+  return { doc, fileName };
+}
+
+/**
+ * Generates and downloads the PDF directly in the user's browser.
+ */
+export async function generateClientPdf(payload) {
+  const { doc, fileName } = await buildPdfDocument(payload);
   doc.save(fileName);
   return true;
+}
+
+/**
+ * Generates a temporary object URL for the PDF to be previewed in an iframe.
+ */
+export async function generatePdfBlobUrl(payload) {
+  const { doc } = await buildPdfDocument(payload);
+  const blob = doc.output('blob');
+  return URL.createObjectURL(blob);
 }

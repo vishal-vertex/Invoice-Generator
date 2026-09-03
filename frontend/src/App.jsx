@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { generateClientPdf } from './pdfGenerator';
+import { generateClientPdf, generatePdfBlobUrl } from './pdfGenerator';
 
 const BACKEND_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'https://invoice-generator-o87g.onrender.com').replace(/\/+$/, '');
 
@@ -67,10 +67,59 @@ export default function App() {
 
   // UI States
   const [showGuidelines, setShowGuidelines] = useState(true);
+  const [previewMode, setPreviewMode] = useState('layout'); // 'layout' | 'pdf'
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState('');
+  const [isGeneratingBlob, setIsGeneratingBlob] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [successNotice, setSuccessNotice] = useState('');
   const [previewPage, setPreviewPage] = useState(0);
+
+  // Generate live PDF object URL when in 'pdf' preview mode
+  useEffect(() => {
+    let activeUrl = '';
+    let isCancelled = false;
+
+    if (step === 4 && previewMode === 'pdf') {
+      setIsGeneratingBlob(true);
+      const payload = {
+        documentType,
+        pageSize,
+        currency,
+        letterheadData,
+        documentNo,
+        documentDate,
+        dueDate,
+        validUntil,
+        referenceNo,
+        customer,
+        company,
+        items,
+        notes,
+        terms,
+        paymentInfo,
+      };
+
+      generatePdfBlobUrl(payload)
+        .then((url) => {
+          if (!isCancelled) {
+            activeUrl = url;
+            setPdfPreviewUrl(url);
+          } else {
+            URL.revokeObjectURL(url);
+          }
+        })
+        .catch((err) => console.error('Error generating PDF blob URL:', err))
+        .finally(() => {
+          if (!isCancelled) setIsGeneratingBlob(false);
+        });
+    }
+
+    return () => {
+      isCancelled = true;
+      if (activeUrl) URL.revokeObjectURL(activeUrl);
+    };
+  }, [step, previewMode, documentType, pageSize, currency, letterheadData, documentNo, documentDate, dueDate, validUntil, referenceNo, customer, company, items, notes, terms, paymentInfo]);
 
   // Server wake-up & health status: 'checking' | 'waking' | 'online'
   const [serverStatus, setServerStatus] = useState('checking');
@@ -842,16 +891,35 @@ export default function App() {
         {step === 4 && (
           <div className="preview-container">
             <div className="preview-controls-bar">
-              <label className="toggle-label">
-                <input
-                  type="checkbox"
-                  checked={showGuidelines}
-                  onChange={(e) => setShowGuidelines(e.target.checked)}
-                />
-                Show 20% / 65% / 15% Layout Guides
-              </label>
+              <div className="preview-mode-switch">
+                <button
+                  type="button"
+                  className={`preview-mode-btn ${previewMode === 'layout' ? 'active' : ''}`}
+                  onClick={() => setPreviewMode('layout')}
+                >
+                  📐 Layout View
+                </button>
+                <button
+                  type="button"
+                  className={`preview-mode-btn ${previewMode === 'pdf' ? 'active' : ''}`}
+                  onClick={() => setPreviewMode('pdf')}
+                >
+                  📄 Real PDF View
+                </button>
+              </div>
 
-              {previewPages.length > 1 && (
+              {previewMode === 'layout' && (
+                <label className="toggle-label">
+                  <input
+                    type="checkbox"
+                    checked={showGuidelines}
+                    onChange={(e) => setShowGuidelines(e.target.checked)}
+                  />
+                  20% / 65% / 15% Guides
+                </label>
+              )}
+
+              {previewMode === 'layout' && previewPages.length > 1 && (
                 <div className="page-tabs">
                   {previewPages.map((_, pIdx) => (
                     <button
@@ -859,120 +927,210 @@ export default function App() {
                       className={`page-tab ${previewPage === pIdx ? 'active' : ''}`}
                       onClick={() => setPreviewPage(pIdx)}
                     >
-                      Page {pIdx + 1} of {previewPages.length}
+                      Page {pIdx + 1} / {previewPages.length}
                     </button>
                   ))}
                 </div>
               )}
             </div>
 
-            {/* A4 Paper View */}
-            <div className="paper-sheet">
-              {/* Background Layer: Untouched Letterhead */}
-              {letterheadData && (
-                <img src={letterheadData} alt="Letterhead Background" className="letterhead-bg-layer" />
-              )}
-
-              {/* Layout Zone Visual Guidelines */}
-              {showGuidelines && (
-                <>
-                  <div className="guideline-header-zone">
-                    <div className="guideline-badge">Top 20% Header Protected</div>
+            {/* REAL PDF EMBEDDED VIEW */}
+            {previewMode === 'pdf' && (
+              <div>
+                {isGeneratingBlob ? (
+                  <div style={{ textAlign: 'center', padding: '60px 20px', background: 'white', borderRadius: '8px', border: '1px solid var(--slate-300)' }}>
+                    ⏳ Generating exact PDF rendering...
                   </div>
-                  <div className="guideline-footer-zone">
-                    <div className="guideline-badge">Bottom 15% Footer Protected</div>
-                  </div>
-                </>
-              )}
-
-              {/* Middle 65% Content Area */}
-              <div className="paper-content-layer">
-                <div className="preview-doc-header">
-                  <div>
-                    <div className="preview-doc-title">{isQuotation ? 'QUOTATION' : 'INVOICE'}</div>
-                    <div style={{ fontSize: '0.65rem', color: 'var(--slate-500)' }}>
-                      {company.name || 'Company Name'}
-                    </div>
-                  </div>
-                  <div className="preview-doc-meta">
-                    <div><strong>{isQuotation ? 'Quote #:' : 'Invoice #:'}</strong> {documentNo}</div>
-                    <div><strong>Date:</strong> {documentDate}</div>
-                    {isQuotation ? (
-                      validUntil && <div><strong>Valid Until:</strong> {validUntil}</div>
-                    ) : (
-                      dueDate && <div><strong>Due Date:</strong> {dueDate}</div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="preview-boxes-grid">
-                  <div className="preview-box">
-                    <h5>{isQuotation ? 'QUOTATION FOR:' : 'BILLED TO:'}</h5>
-                    <strong>{customer.name || 'Client Name'}</strong>
-                    <div>{customer.phone}</div>
-                    <div>{customer.email}</div>
-                    <div>{customer.address}</div>
-                  </div>
-
-                  <div className="preview-box">
-                    <h5>SUPPLIER:</h5>
-                    <strong>{company.name || 'Company Name'}</strong>
-                    <div>{company.gstNo && `GSTIN: ${company.gstNo}`}</div>
-                    <div>{company.phone}</div>
-                  </div>
-                </div>
-
-                {/* Items Table in Preview */}
-                <table className="preview-table-view">
-                  <thead>
-                    <tr>
-                      <th>#</th>
-                      <th>Item & Description</th>
-                      <th style={{ textAlign: 'right' }}>Qty</th>
-                      <th style={{ textAlign: 'right' }}>Price</th>
-                      <th style={{ textAlign: 'right' }}>Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(previewPages[previewPage] || []).map((item, idx) => (
-                      <tr key={idx}>
-                        <td>{previewPage * 6 + idx + 1}</td>
-                        <td>
-                          <strong>{item.name || 'Item'}</strong>
-                          {item.description && <div style={{ fontSize: '0.6rem', color: 'var(--slate-500)' }}>{item.description}</div>}
-                        </td>
-                        <td style={{ textAlign: 'right' }}>{item.qty}</td>
-                        <td style={{ textAlign: 'right' }}>{Number(item.unitPrice).toFixed(2)}</td>
-                        <td style={{ textAlign: 'right' }}><strong>{item.lineTotal.toFixed(2)}</strong></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-
-                {/* Summary View on Final Page */}
-                {previewPage === previewPages.length - 1 && (
-                  <div className="preview-summary-view">
-                    <div style={{ maxWidth: '55%' }}>
-                      {!isQuotation && paymentInfo.bankName && (
-                        <div>
-                          <strong>Payment:</strong> {paymentInfo.bankName} | A/C: {paymentInfo.accountNo}
-                        </div>
-                      )}
-                      {notes && <div><strong>Notes:</strong> {notes}</div>}
-                    </div>
-
-                    <div style={{ textAlign: 'right' }}>
-                      <div>Subtotal: {currency} {calculations.subtotal.toFixed(2)}</div>
-                      <div>Tax (+): {currency} {calculations.totalTax.toFixed(2)}</div>
-                      <div>Discount (-): {currency} {calculations.totalDiscount.toFixed(2)}</div>
-                      <div style={{ fontSize: '0.8rem', fontWeight: '800', marginTop: '2px', color: 'var(--dark-navy)' }}>
-                        Grand Total: {currency} {calculations.grandTotal.toFixed(2)}
-                      </div>
-                    </div>
+                ) : pdfPreviewUrl ? (
+                  <iframe
+                    src={pdfPreviewUrl}
+                    title="Exact PDF Document Preview"
+                    className="preview-pdf-frame"
+                  />
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '40px 20px', background: 'white', borderRadius: '8px' }}>
+                    Unable to generate PDF preview.
                   </div>
                 )}
               </div>
-            </div>
+            )}
+
+            {/* A4 INTERACTIVE PAPER VIEW */}
+            {previewMode === 'layout' && (
+              <div className="paper-sheet">
+                {/* Background Layer: Untouched Letterhead */}
+                {letterheadData && (
+                  <img src={letterheadData} alt="Letterhead Background" className="letterhead-bg-layer" />
+                )}
+
+                {/* Layout Zone Visual Guidelines */}
+                {showGuidelines && (
+                  <>
+                    <div className="guideline-header-zone">
+                      <div className="guideline-badge">Top 20% Header Protected</div>
+                    </div>
+                    <div className="guideline-footer-zone">
+                      <div className="guideline-badge">Bottom 15% Footer Protected</div>
+                    </div>
+                  </>
+                )}
+
+                {/* Middle 65% Content Area */}
+                <div className="paper-content-layer">
+                  {/* Document Title & Meta */}
+                  <div className="preview-doc-header">
+                    <div className="preview-doc-title">{isQuotation ? 'QUOTATION' : 'INVOICE'}</div>
+                    <div className="preview-doc-meta">
+                      <div>
+                        <strong>{isQuotation ? 'Quotation No:' : 'Invoice No:'}</strong>
+                        <span>{documentNo || 'N/A'}</span>
+                      </div>
+                      <div>
+                        <strong>{isQuotation ? 'Date:' : 'Invoice Date:'}</strong>
+                        <span>{documentDate || 'N/A'}</span>
+                      </div>
+                      {(isQuotation ? validUntil : dueDate) && (
+                        <div>
+                          <strong>{isQuotation ? 'Valid Until:' : 'Due Date:'}</strong>
+                          <span>{(isQuotation ? validUntil : dueDate) || 'N/A'}</span>
+                        </div>
+                      )}
+                      {referenceNo && (
+                        <div>
+                          <strong>Ref No:</strong>
+                          <span>{referenceNo}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Customer & Company Details Box */}
+                  <div className="preview-boxes-grid">
+                    <div className="preview-box">
+                      <h5>{isQuotation ? 'QUOTATION FOR:' : 'BILLED TO:'}</h5>
+                      <div className="preview-box-name">{customer.name || 'Customer Name'}</div>
+                      <div className="preview-box-details">
+                        {customer.phone && <div>Phone: {customer.phone}</div>}
+                        {customer.email && <div>Email: {customer.email}</div>}
+                        {customer.address && <div>{customer.address}</div>}
+                      </div>
+                    </div>
+
+                    <div className="preview-box">
+                      <h5>FROM / SUPPLIER:</h5>
+                      <div className="preview-box-name">{company.name || 'Company / Business'}</div>
+                      <div className="preview-box-details">
+                        {company.gstNo && <div>Tax ID / GSTIN: {company.gstNo}</div>}
+                        {(company.phone || company.email) && (
+                          <div>{[company.phone, company.email].filter(Boolean).join(' | ')}</div>
+                        )}
+                        {company.address && <div>{company.address}</div>}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Items Table: 7 Columns matched 1:1 with jsPDF */}
+                  <table className="preview-table-view">
+                    <thead>
+                      <tr>
+                        <th className="col-idx">#</th>
+                        <th className="col-desc">ITEM / DESCRIPTION</th>
+                        <th className="col-qty">QTY</th>
+                        <th className="col-price">PRICE ({currency})</th>
+                        <th className="col-tax">TAX %</th>
+                        <th className="col-disc">DISC %</th>
+                        <th className="col-total">TOTAL ({currency})</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(previewPages[previewPage] || []).map((item, idx) => {
+                        const rowIdx = previewPage * 6 + idx;
+                        const isEven = rowIdx % 2 === 1;
+                        const base = (Number(item.qty) || 0) * (Number(item.unitPrice) || 0);
+                        const tax = (base * (Number(item.taxPercent) || 0)) / 100;
+                        const disc = (base * (Number(item.discountPercent) || 0)) / 100;
+                        const total = base + tax - disc;
+                        return (
+                          <tr key={idx} className={isEven ? 'even-row' : ''}>
+                            <td className="col-idx">{rowIdx + 1}</td>
+                            <td className="col-desc">
+                              <div className="preview-item-name">{item.name || item.description || `Item ${rowIdx + 1}`}</div>
+                              {item.description && item.name && (
+                                <div className="preview-item-desc">{item.description}</div>
+                              )}
+                            </td>
+                            <td className="col-qty">{item.qty || 0}</td>
+                            <td className="col-price">{Number(item.unitPrice || 0).toFixed(2)}</td>
+                            <td className="col-tax">{Number(item.taxPercent || 0)}%</td>
+                            <td className="col-disc">{Number(item.discountPercent || 0)}%</td>
+                            <td className="col-total"><strong>{total.toFixed(2)}</strong></td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+
+                  {/* Summary & Signatures (Displayed on Final Page) */}
+                  {previewPage === previewPages.length - 1 && (
+                    <>
+                      <div className="preview-summary-view">
+                        <div className="preview-summary-left">
+                          {!isQuotation && (paymentInfo.bankName || paymentInfo.accountNo || paymentInfo.upiId) && (
+                            <div>
+                              <div className="preview-summary-section-title">PAYMENT INFORMATION:</div>
+                              <div className="preview-summary-text">
+                                {paymentInfo.bankName && <div>Bank: {paymentInfo.bankName}</div>}
+                                {paymentInfo.accountNo && <div>Account No: {paymentInfo.accountNo}</div>}
+                                {paymentInfo.ifsc && <div>IFSC / Swift: {paymentInfo.ifsc}</div>}
+                                {paymentInfo.upiId && <div>UPI ID: {paymentInfo.upiId}</div>}
+                              </div>
+                            </div>
+                          )}
+
+                          {(terms || notes) && (
+                            <div style={{ marginTop: '4px' }}>
+                              <div className="preview-summary-section-title">TERMS & NOTES:</div>
+                              <div className="preview-summary-text">
+                                {notes && <div>{notes}</div>}
+                                {terms && <div>{terms}</div>}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="preview-summary-card">
+                          <div className="preview-sum-row">
+                            <span>Subtotal:</span>
+                            <span>{currency} {calculations.subtotal.toFixed(2)}</span>
+                          </div>
+                          <div className="preview-sum-row">
+                            <span>Tax Amount (+):</span>
+                            <span>{currency} {calculations.totalTax.toFixed(2)}</span>
+                          </div>
+                          <div className="preview-sum-row">
+                            <span>Discount (-):</span>
+                            <span>{currency} {calculations.totalDiscount.toFixed(2)}</span>
+                          </div>
+                          <div className="preview-sum-divider" />
+                          <div className="preview-sum-grand">
+                            <span>GRAND TOTAL:</span>
+                            <span>{currency} {calculations.grandTotal.toFixed(2)}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Authorized Signature matching jsPDF */}
+                      <div className="preview-sig-block">
+                        <div className="preview-sig-container">
+                          <div className="preview-sig-line" />
+                          <div className="preview-sig-label">Authorized Signature</div>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
