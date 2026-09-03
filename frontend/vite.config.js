@@ -5,7 +5,11 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      '/api': 'http://localhost:4000',
+      '/api': {
+        target: process.env.BACKEND_URL || 'https://invoice-generator-o87g.onrender.com',
+        changeOrigin: true,
+        secure: false,
+      },
     },
   },
 });

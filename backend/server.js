@@ -19,6 +19,13 @@ app.use(bodyParser.json({ limit: '15mb' }));
 app.use(express.static(path.join(__dirname, '../frontend/dist')));
 
 /**
+ * Health check & wake-up endpoints
+ */
+app.get(['/api/health', '/api/ping'], (req, res) => {
+  res.json({ status: 'ok', message: 'Invoice Generator backend is awake and ready', timestamp: new Date().toISOString() });
+});
+
+/**
  * Primary Stateless API Endpoint: Generate PDF Document
  * Accepts letterhead data URL and form details, calculates boundaries,
  * and streams back the generated PDF binary.

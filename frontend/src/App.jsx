@@ -1,4 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { generateClientPdf } from './pdfGenerator';
+
+const BACKEND_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'https://invoice-generator-o87g.onrender.com').replace(/\/+$/, '');
 
 const defaultItem = () => ({
   name: '',
@@ -66,7 +69,63 @@ export default function App() {
   const [showGuidelines, setShowGuidelines] = useState(true);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [successNotice, setSuccessNotice] = useState('');
   const [previewPage, setPreviewPage] = useState(0);
+
+  // Server wake-up & health status: 'checking' | 'waking' | 'online'
+  const [serverStatus, setServerStatus] = useState('checking');
+
+  // Automatic Background Wake-Up on site launch & Periodic Keep-Alive
+  useEffect(() => {
+    let isMounted = true;
+
+    const wakeUpBackend = async () => {
+      try {
+        const res = await fetch(`${BACKEND_BASE_URL}/api/health`, {
+          method: 'GET',
+          signal: AbortSignal.timeout ? AbortSignal.timeout(6000) : undefined,
+        });
+        if (res.ok) {
+          if (isMounted) setServerStatus('online');
+          return;
+        }
+      } catch {
+        // Cold starting or unreachable
+      }
+
+      if (isMounted) setServerStatus('waking');
+
+      // Poll periodically until online
+      const pollTimer = setInterval(async () => {
+        try {
+          const res = await fetch(`${BACKEND_BASE_URL}/api/health`, {
+            method: 'GET',
+            signal: AbortSignal.timeout ? AbortSignal.timeout(5000) : undefined,
+          });
+          if (res.ok) {
+            if (isMounted) setServerStatus('online');
+            clearInterval(pollTimer);
+          }
+        } catch {
+          // Still spinning up
+        }
+      }, 6000);
+
+      return () => clearInterval(pollTimer);
+    };
+
+    wakeUpBackend();
+
+    // Heartbeat every 4 minutes to prevent Render free instance from idling out
+    const heartbeat = setInterval(() => {
+      fetch(`${BACKEND_BASE_URL}/api/health`, { method: 'GET' }).catch(() => {});
+    }, 4 * 60 * 1000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(heartbeat);
+    };
+  }, []);
 
   // Switch Document Type
   const handleTypeSelect = (type) => {
@@ -168,10 +227,13 @@ export default function App() {
     return pages.length > 0 ? pages : [[]];
   }, [calculations.computedItems]);
 
-  // Request PDF Generation from Backend API
+  // Request PDF Generation:
+  // Tries Render backend API with a 12-second timeout.
+  // If the backend is waking up or slow or fails, seamlessly falls back to instant client-side generation.
   const handleGeneratePdf = async () => {
     setIsGeneratingPdf(true);
     setErrorMessage('');
+    setSuccessNotice('');
 
     const payload = {
       documentType,
@@ -191,31 +253,51 @@ export default function App() {
       paymentInfo,
     };
 
+    const sanitizedDocNo = (documentNo || 'document').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const fileName = `${documentType}_${sanitizedDocNo}.pdf`;
+
+    // 1. Try Backend API
     try {
-      const response = await fetch('/api/generate-pdf', {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+      const response = await fetch(`${BACKEND_BASE_URL}/api/generate-pdf`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
+        signal: controller.signal,
       });
 
-      if (!response.ok) {
-        const errorJson = await response.json().catch(() => ({}));
-        throw new Error(errorJson.error || 'Failed to generate PDF');
-      }
+      clearTimeout(timeoutId);
 
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      const sanitizedDocNo = (documentNo || 'document').replace(/[^a-zA-Z0-9_-]/g, '_');
-      link.download = `${documentType}_${sanitizedDocNo}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error('PDF Generation failed:', err);
-      setErrorMessage('Could not generate PDF: ' + err.message);
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        setServerStatus('online');
+        setSuccessNotice('PDF generated & downloaded via Render backend!');
+        setTimeout(() => setSuccessNotice(''), 4000);
+        setIsGeneratingPdf(false);
+        return;
+      }
+    } catch (apiErr) {
+      console.warn('Backend API request timed out or was unavailable, using client-side engine:', apiErr);
+    }
+
+    // 2. Client-side fallback engine (100% reliable)
+    try {
+      await generateClientPdf(payload);
+      setSuccessNotice('PDF generated & downloaded instantly!');
+      setTimeout(() => setSuccessNotice(''), 4000);
+    } catch (clientErr) {
+      console.error('PDF Generation failed:', clientErr);
+      setErrorMessage('Could not generate PDF: ' + clientErr.message);
     } finally {
       setIsGeneratingPdf(false);
     }
@@ -234,8 +316,27 @@ export default function App() {
             <p>Letterhead Quotation & Invoice Engine</p>
           </div>
         </div>
-        <div className={`document-badge ${documentType}`}>
-          {isQuotation ? '📋 Quotation Mode' : '🧾 Invoice Mode'}
+
+        <div className="header-actions">
+          <div
+            className={`server-status-pill ${serverStatus}`}
+            title={
+              serverStatus === 'online'
+                ? 'Render backend server is active and connected'
+                : 'Render free tier backend is spinning up in the background. PDFs generate instantly client-side in the meantime!'
+            }
+          >
+            <span className="status-dot"></span>
+            {serverStatus === 'online'
+              ? '⚡ Backend Online'
+              : serverStatus === 'waking'
+              ? '⏳ Waking Up Backend...'
+              : '🔍 Connecting Backend...'}
+          </div>
+
+          <div className={`document-badge ${documentType}`}>
+            {isQuotation ? '📋 Quotation Mode' : '🧾 Invoice Mode'}
+          </div>
         </div>
       </header>
 
@@ -260,6 +361,26 @@ export default function App() {
       </nav>
 
       {errorMessage && <div className="error-banner">{errorMessage}</div>}
+      {successNotice && (
+        <div
+          className="success-banner"
+          style={{
+            background: '#ecfdf5',
+            color: '#065f46',
+            border: '1px solid #a7f3d0',
+            padding: '12px 18px',
+            borderRadius: '10px',
+            marginBottom: '20px',
+            fontWeight: 500,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+          }}
+        >
+          <span>✅</span>
+          <span>{successNotice}</span>
+        </div>
+      )}
 
       {/* Main Grid Workspace */}
       <div className={`workspace-grid ${step === 4 ? 'has-preview' : ''}`}>
