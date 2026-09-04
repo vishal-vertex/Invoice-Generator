@@ -52,17 +52,17 @@ export default function App() {
   });
 
   const [items, setItems] = useState([
-    { name: 'Web Development Services', description: 'Custom website redesign and implementation', qty: 1, unitPrice: 15000, taxPercent: 18, discountPercent: 0 },
+    { name: '', description: '', qty: 1, unitPrice: 0, taxPercent: 0, discountPercent: 0 },
   ]);
 
   const [notes, setNotes] = useState('Thank you for doing business with us!');
   const [terms, setTerms] = useState('Payment is required within 15 days of invoice date.');
 
   const [paymentInfo, setPaymentInfo] = useState({
-    bankName: 'HDFC Bank',
-    accountNo: '50100012345678',
-    ifsc: 'HDFC0001234',
-    upiId: 'company@upi',
+    bankName: '',
+    accountNo: '',
+    ifsc: '',
+    upiId: '',
   });
 
   // UI States
@@ -570,7 +570,7 @@ export default function App() {
                       className="form-control"
                       value={referenceNo}
                       onChange={(e) => setReferenceNo(e.target.value)}
-                      placeholder="PO-88492"
+                      placeholder="Enter Reference No. / PO No."
                     />
                   </div>
 
@@ -599,7 +599,7 @@ export default function App() {
                       className="form-control"
                       value={customer.name}
                       onChange={(e) => setCustomer({ ...customer, name: e.target.value })}
-                      placeholder="Acme Corporation Ltd"
+                      placeholder="Enter Customer/Client Name"
                     />
                   </div>
 
@@ -609,7 +609,7 @@ export default function App() {
                       className="form-control"
                       value={customer.phone}
                       onChange={(e) => setCustomer({ ...customer, phone: e.target.value })}
-                      placeholder="+91 98765 43210"
+                      placeholder="Enter Phone Number"
                     />
                   </div>
 
@@ -619,7 +619,7 @@ export default function App() {
                       className="form-control"
                       value={customer.email}
                       onChange={(e) => setCustomer({ ...customer, email: e.target.value })}
-                      placeholder="billing@acme.com"
+                      placeholder="Enter Email Address"
                     />
                   </div>
 
@@ -630,7 +630,7 @@ export default function App() {
                       rows={2}
                       value={customer.address}
                       onChange={(e) => setCustomer({ ...customer, address: e.target.value })}
-                      placeholder="123 Tech Park, Suite 400..."
+                      placeholder="Enter Billing Address"
                     />
                   </div>
                 </div>
@@ -650,7 +650,7 @@ export default function App() {
                       className="form-control"
                       value={company.name}
                       onChange={(e) => setCompany({ ...company, name: e.target.value })}
-                      placeholder="My Business Solutions"
+                      placeholder="Enter Company Name"
                     />
                   </div>
 
@@ -660,7 +660,7 @@ export default function App() {
                       className="form-control"
                       value={company.gstNo}
                       onChange={(e) => setCompany({ ...company, gstNo: e.target.value })}
-                      placeholder="27AAACG1234H1Z5"
+                      placeholder="Enter Tax ID / GSTIN"
                     />
                   </div>
 
@@ -670,7 +670,7 @@ export default function App() {
                       className="form-control"
                       value={company.phone}
                       onChange={(e) => setCompany({ ...company, phone: e.target.value })}
-                      placeholder="+91 80000 11111"
+                      placeholder="Enter Contact Phone / Email"
                     />
                   </div>
                 </div>
@@ -799,6 +799,7 @@ export default function App() {
                       <label>Bank Name</label>
                       <input
                         className="form-control"
+                        placeholder='Enter Bank Name'
                         value={paymentInfo.bankName}
                         onChange={(e) => setPaymentInfo({ ...paymentInfo, bankName: e.target.value })}
                       />
@@ -807,6 +808,7 @@ export default function App() {
                       <label>Account Number</label>
                       <input
                         className="form-control"
+                        placeholder='Enter Account Number'
                         value={paymentInfo.accountNo}
                         onChange={(e) => setPaymentInfo({ ...paymentInfo, accountNo: e.target.value })}
                       />
@@ -815,6 +817,7 @@ export default function App() {
                       <label>IFSC / SWIFT</label>
                       <input
                         className="form-control"
+                        placeholder='Enter IFSC / SWIFT'
                         value={paymentInfo.ifsc}
                         onChange={(e) => setPaymentInfo({ ...paymentInfo, ifsc: e.target.value })}
                       />
@@ -823,6 +826,7 @@ export default function App() {
                       <label>UPI ID</label>
                       <input
                         className="form-control"
+                        placeholder='Enter UPI ID'
                         value={paymentInfo.upiId}
                         onChange={(e) => setPaymentInfo({ ...paymentInfo, upiId: e.target.value })}
                       />
