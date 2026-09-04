@@ -359,9 +359,9 @@ export default function App() {
       {/* Brand Header */}
       <header className="app-header">
         <div className="brand-badge">
-          <div className="brand-icon">Q</div>
+          <div className="brand-icon">☣</div>
           <div className="brand-title">
-            <h1>DocGen Studio</h1>
+            <h1>Company Engine</h1>
             <p>Letterhead Quotation & Invoice Engine</p>
           </div>
         </div>
